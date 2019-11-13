@@ -1,191 +1,192 @@
 import numpy as np
+from sympy import *
 import matplotlib.pyplot as plt
+import seaborn as sns
 import pandas as pd
-import matplotlib.ticker as ticker
 
-def initialChoice():
-	n = input("Welcome. Please enter your strategy, type options to see available strategies, or type exit to close this program:\n")
+
+def current():
+	n = input("What position would you like to open? \n" )
 	while True:
 		choice = str(n)
-		if (choice == 'buy call' or choice == 'sell call' or choice == 'buy put' or choice == 'sell put' or choice == 'butterfly spread' or choice == 'bearish vertical spread' or choice == 'top combination' or choice == 'two for one' or choice == 'exit'):
+		if (choice == 'long call' or 
+			choice == 'short call' or 
+			choice == 'long put' or 
+			choice == 'short put' or 
+			choice == 'long stock' or 
+			choice == 'short stock' or
+			choice == 'arbitrage' or
+			choice == 'exit'):
 			break
 		elif (choice == 'options'):
-			n = input("buy call, sell call, buy put, sell put, butterfly spread:\n")
+			n = input("long stock, short stock \nlong call, short call \nlong put, short put \nlend, borrow \noptions, exit:\n")
 		else:
 			n = input("Not a valid input. Please try again or type options to see available strategies:\n")
 
-	return choice
+	return choice.replace(' ', '')
 
-def ownStock():
-	price = 56.40
-	y = []
 
-	for i in range(80):
-		y.append(float(i - price))
+def findArbitrage(optionsTable):
 
-	return y
+	calls = optionsTable.iloc[:, :int(len(optionsTable.columns)/2)]
+	puts = optionsTable.iloc[:, int(len(optionsTable.columns)/2):]
+	print(calls)
+	print(puts)
+	prevStrike, prevRow = None, None
 
-def price(s):
-	choice = int(0)
+	for strike, row in calls.iterrows():
+
+		#Check condition 1
+		for i in range(0, len(row), -1):
+			print(row[i])
+
+
+
+		prevStrike, prevRow = strike, row
+
+
+
+def price(asset):
+	val = 0.0
 	while True:
 		try:
-			n1 = input("Enter the " + s + " strike price: ")
-			n2 = input("Enter the " + s + " premium: ")
-			n1 = float(n1)
-			n2 = float(n2)
-			break
+			val = float(input("Enter " + asset + " price:"))
+			break			
 		except ValueError:
-			print("An input was not a number. Please try again.")
-	return n1, n2
+			print("Input not valid. Please try again.")
 
-def call(_type):
-	strike, premium = price('call')
+	return val
 
-	def bought(x):
-		val = x
-		x = -premium
-		if (val > strike): x+= val-strike
+def longstock(expr):
+	v = price('stock')
+	s = Symbol('s')
+	expr+= s - v
+	return expr
 
-		return x
+def shortstock(expr):
+	v = price('stock')
+	s = Symbol('s')
+	expr+= v - s
+	return expr
 
-	def sold(x):
-		val = x
-		x = premium
-		if (val > strike): x-= val-strike
+def longcall(expr):
+	k = price('strike')
+	c = price('call')
+	s = Symbol('s')
+	expr+= Piecewise((0, s-k < 0), (s-k, True)) - c
+	return expr
 
-		return x
+def shortcall(expr):
 
+	k = price('strike')
+	c = price('call')
+	s = Symbol('s')
+	expr+= c - Piecewise((0, s-k < 0), (s-k, True)) 
+	return expr
+
+def longput(expr):
+
+	k = price('strike')
+	p = price('put')
+	s = Symbol('s')
+	expr+= Piecewise((0, k-s < 0), (k-s, True)) - p
+	return expr
+
+def shortput(expr):
+
+	k = price('strike')
+	p = price('put')
+	s = Symbol('s')
+	expr+= p - Piecewise((0, k-s < 0), (k-s, True)) 
+	return expr
+
+def evaluate(expr):
+	s = Symbol('s')
+	fd = diff(expr)
+	breakEven = solveset(expr,s, domain=S.Reals)
+	criticalPoints = solveset(fd,s, domain=S.Reals)
+
+	bEs = set()
+	cPs = set()
+	for arg in breakEven.args:
+		bEs.add(arg)
+
+
+	for arg in criticalPoints.args:
+		cPs.add(arg)
+
+	a = [round(x,2) for x in bEs if (isinstance(x, Float))] #sympy.core.numbers.Float type
+	b = [round(x,2) for x in cPs if (isinstance(x, Float))]
+
+	print('Break even point(s) at: ' + str(a))
+	print('Inflection point(s) at: ' + str(b))
+	plotRange = a+b
+	
+	return plotRange
+
+def plot(expr, plotRange):
+	
+	#Generate plots to be plotted
+	s = Symbol('s')
+	x = []
 	y = []
 
-	for i in range(80):
-		if _type == 'buy':
-			y.append(bought(i))
-		else:
-			y.append(sold(i))
+	minR = min(plotRange)
+	maxR = max(plotRange)
+	
+	for i in range(int(0.75 * minR), int(1.25* maxR)):
+		x.append(i)
+		y.append(float(expr.subs(s, i)))
 
-	return y
-
-
-def put(_type):
-	strike, premium = price('put')
-
-	def bought(x):
-		val = x
-		x = -premium
-		if (val < strike): x+= strike-val
-
-		return x
-
-	def sold(x):
-		val = x
-		x = premium
-		if (val < strike): x-= strike-val
-
-		return x
-
-	y = []
-
-	for i in range(80):
-		if _type == 'buy':
-			y.append(bought(i))
-		else:
-			y.append(sold(i))
-
-	return y
-
-
-def total(y, finalY):
-
-	if len(finalY) > 0:
-		for i in range(80):
-			finalY[i]+= y[i]
-	else:
-		finalY = y.copy()
-
-	return finalY
-
-def graph(y):
-	ticks = [0,40,45,50,55,60,65,70,75]
+	df = pd.DataFrame()
+	df['Stock Price'] = x
+	df['$ per Share'] = y
+	df = df.set_index('Stock Price')
+	
+	sns.set(style="darkgrid", palette="muted", color_codes=True)
 	fig = plt.figure()
 	ax = fig.add_subplot(1, 1, 1)
-	df = pd.DataFrame()
-	df['$ per Share'] = y
-
-	#ax.set_xticklabels(ticks)
-	maxY = max(y)
-	ax.set_xlim([0,80])
-	ax.set_ylim([-10,10])
-	ax.xaxis.set_major_locator(ticker.MultipleLocator(5))
-	ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))
-	ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
 	ax.spines['right'].set_color('none')
 	ax.spines['top'].set_color('none')
 
-	#ax.spines['left'].set_position('center')
-	ax.spines['bottom'].set_position('center')
+	#ax.spines['bottom'].set_position('center')
 
-	# Show ticks in the left and lower axes only
-	ax.xaxis.set_ticks_position('bottom')
-	ax.yaxis.set_ticks_position('left')
-	ax.xaxis.get_major_ticks()[0].label1.set_visible(False)
-	ax.plot(df, linewidth = 1)
-	plt.title('Bearish Vertical Spread',fontsize=28)
+	plt.xlim(x[0], x[-1])
+	plt.title('Payoff Diagram',fontsize=14, pad = 10)
 	plt.xlabel('Share Price', fontsize = 14, labelpad = 2)
 	plt.ylabel('$ Value per Share', fontsize = 14)
-	plt.show()
 
+
+	plt.plot([x[0],x[-1]], [0,0], c= 'lightgrey') #Horizontal Line
+
+	plt.plot(df) #Main line
+	
+
+	print(df)
+	for i in plotRange: #Points of inflection / breakeven
+		plt.plot(i, float(expr.subs(s, i)), 'ro', c = 'orange')
+		
+
+	plt.show()
+	
 
 def main():
-	finalY = []
-	y = None
-	dType = initialChoice()
+	dType = current()
+	expr = 0
 
-	if dType == 'buy call':
-		y = call('buy')
-		finalY = total(y,finalY)
+	while dType != 'exit':
+		if dType == 'arbitrage': break
+		expr = globals()[dType](expr)
+		dType = current()
 
-	if dType == 'sell call':
-		y = call('sell')
-		finalY = total(y,finalY)
+	if dType != 'arbitrage':
+		plotRange = evaluate(expr)
+		plot(expr, plotRange)
+	else:
+		optionsTable = pd.read_excel('optionsTable.xlsx', index_col='Strike Price')
+		print(optionsTable)
+		findArbitrage(optionsTable)
 
-	if dType == 'buy put':
-		y = put('buy')
-		finalY = total(y,finalY)
-
-	if dType == 'sell put':
-		y = put('sell')
-		finalY = total(y,finalY)
-
-	if dType == 'butterfly spread':
-		y = put('buy')
-		finalY = total(y,finalY)
-		y = put('sell')
-		finalY = total(y,finalY)
-		finalY = total(y,finalY)
-		y = put('buy')
-		finalY = total(y,finalY)
-
-	if dType == 'top combination':
-		y = put('sell')
-		finalY = total(y,finalY)
-		y = call('sell')
-		finalY = total(y,finalY)
-
-	if dType == 'two for one':
-		y = put('buy')
-		finalY = total(y,finalY)
-		finalY = total(y,finalY)
-		y = ownStock()
-		finalY = total(y, finalY)
-
-	if dType == 'bearish vertical spread':
-		y = put('sell')
-		finalY = total(y,finalY)
-		y = put('buy')
-		finalY = total(y,finalY)
-
-	print(finalY)
-	graph(finalY)
 
 
 if __name__ == "__main__":
